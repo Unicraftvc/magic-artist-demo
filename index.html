@@ -360,10 +360,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <span class="time" id="tm">0:00 / 2:38</span>
       <span class="chap-now" id="cnow"></span>
       <div class="spd"><button type="button" class="btn txt" id="spd" aria-haspopup="menu" aria-expanded="false">1×</button><div class="spdm" id="spdm" role="menu" hidden></div></div>
+      <button type="button" class="btn" id="snd" aria-label="Son"></button>
       <button type="button" class="btn" id="fs" aria-label="Plein écran"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
   </div>
   <nav class="chaps" id="chaps"></nav>
+  <audio id="music" src="magic-benefits-music.mp3" preload="auto" loop></audio>
   <p class="note" id="note"></p>
 </div>
 <template id="tpl-fr-FV1"><div style="width: 390px; height: 1640px; position: relative; overflow: hidden; background: #0D0A3F; color: #FFFFFF; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; flex-direction: column">
@@ -4006,7 +4008,7 @@ for(const id in FX){FX[id](-100)}
 
 
 /* ---------------- share player ---------------- */
-const UI={"fr": {"title": "Magic × Nova · démo artistes", "sub": "Un fan suit la sortie de l’album d’un artiste fictif, en __DUR__", "note": "Animation sans son. Maquettes produit : artiste, titres et chiffres d’écran fictifs. Espace : lecture ou pause · flèches : ±5 s · F : plein écran.", "play": "Lire", "pause": "Pause", "fs": "Plein écran", "fsx": "Quitter le plein écran", "speed": "Vitesse", "chaps": "Chapitres", "dec": ","}, "en": {"title": "Magic × Nova · artist demo", "sub": "One fan follows a fictional artist’s album release, in __DUR__", "note": "Silent animation. Product mock-ups: artist, songs and on-screen figures are fictional. Space: play or pause · arrows: ±5 s · F: full screen.", "play": "Play", "pause": "Pause", "fs": "Full screen", "fsx": "Exit full screen", "speed": "Speed", "chaps": "Chapters", "dec": "."}}[LANG];
+const UI={"fr": {"title": "Magic × Nova · démo artistes", "sub": "Un fan suit la sortie de l’album d’un artiste fictif, en __DUR__", "note": "Animation avec musique. Maquettes produit : artiste, titres et chiffres d’écran fictifs. Espace : lecture ou pause · flèches : ±5 s · F : plein écran.", "play": "Lire", "snd": "Son", "mute": "Couper le son", "unmute": "Activer le son", "pause": "Pause", "fs": "Plein écran", "fsx": "Quitter le plein écran", "speed": "Vitesse", "chaps": "Chapitres", "dec": ","}, "en": {"title": "Magic × Nova · artist demo", "sub": "One fan follows a fictional artist’s album release, in __DUR__", "note": "Animation with music. Product mock-ups: artist, songs and on-screen figures are fictional. Space: play or pause · arrows: ±5 s · F: full screen.", "play": "Play", "snd": "Sound", "mute": "Mute", "unmute": "Unmute", "pause": "Pause", "fs": "Full screen", "fsx": "Exit full screen", "speed": "Speed", "chaps": "Chapters", "dec": "."}}[LANG];
 const SLOW=1.5,VT=TOTAL*SLOW; // playback is slowed down: video time = engine time × SLOW
 const MENU_V=MENU_END*SLOW;
 const HP=(function(){const o={};(location.hash||'').replace(/^#/,'').split('&').slice(1).forEach(kv=>{const i=kv.indexOf('=');if(i>0)o[kv.slice(0,i)]=kv.slice(i+1)});return o})();
@@ -4023,10 +4025,31 @@ function fmt(t){t=Math.max(0,t);return Math.floor(t/60)+':'+String(Math.floor(t%
 const RATES=[0.75,1,1.25,1.5,2];
 let rate=1,playing=false,base=0,t0=performance.now();
 function now(){return playing?base+(performance.now()-t0)/1000*rate:base}
-function seekTo(t){base=Math.max(0,Math.min(VT,t));t0=performance.now();if(!playing)draw(base)}
-function play(){if(playing)return;if(base>=VT-0.05||base<MENU_V)base=MENU_V;t0=performance.now();playing=true;syncBtn();poke()}
-function pause(){if(!playing)return;base=now();playing=false;syncBtn();poke()}
+function seekTo(t){base=Math.max(0,Math.min(VT,t));t0=performance.now();if(!playing)draw(base);if(typeof syncMusic==='function')syncMusic()}
+function play(){if(playing)return;if(base>=VT-0.05||base<MENU_V)base=MENU_V;t0=performance.now();playing=true;syncBtn();poke();syncMusic()}
+function pause(){if(!playing)return;base=now();playing=false;syncBtn();poke();syncMusic()}
 function toggle(){playing?pause():play()}
+
+
+/* ---- background music: same track as the artists deck video, locked to the demo clock ---- */
+const music=$('music'),sndBtn=$('snd'),MUS_LOOP=65.5;
+let muted=false;try{muted=localStorage.getItem('nova-muted')==='1'}catch(e){}
+const IC_SND='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h4l5 4v-13l-5 4z" fill="currentColor"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+      IC_MUT='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h4l5 4v-13l-5 4z" fill="currentColor"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></svg>';
+function musicPos(t){return Math.max(0,t-MENU_V)%MUS_LOOP} // the track starts when the demo leaves the opening menu, then loops
+function syncMusic(){
+  if(!music)return;
+  music.muted=muted;music.volume=0.8;
+  if(playing&&now()>=MENU_V-0.05){
+    music.playbackRate=rate;
+    if(Math.abs(music.currentTime-musicPos(now()))>0.6)try{music.currentTime=musicPos(now())}catch(e){}
+    if(music.paused){const p=music.play();if(p&&p.catch)p.catch(()=>{})} // blocked until the first click or key press
+  }else if(!music.paused)music.pause();
+  sndBtn.innerHTML=muted?IC_MUT:IC_SND;sndBtn.setAttribute('aria-label',muted?UI.unmute:UI.mute);
+}
+sndBtn.onclick=e=>{e.stopPropagation();muted=!muted;try{localStorage.setItem('nova-muted',muted?'1':'0')}catch(err){}syncMusic()};
+['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{if(playing&&music.paused)syncMusic()},true));
+setInterval(syncMusic,500); // keeps the music on the demo clock: seeks, chapters, speed, end of demo
 
 /* ---- language switch: keeps position, play state and speed ---- */
 document.querySelectorAll('.seg button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.lang===LANG));
